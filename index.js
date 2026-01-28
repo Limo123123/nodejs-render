@@ -2,12 +2,12 @@ const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 5500;
 
 // ZIEL: Die Tailscale-IP oder der MagicDNS-Name deines Raspberry Pi
 // Wichtig: Nutze hier HTTP, da Tailscale intern schon verschlüsselt, 
 // oder HTTPS, wenn dein Pi ein selbst-signiertes Zertifikat hat (dann secure: false).
-const TARGET = process.env.TARGET_URL || 'http://raspberrypi:10000'; 
+const TARGET = process.env.TARGET_URL || 'http://100.82.208.74:5500'; 
 
 console.log(`🚀 Proxy startet. Leite weiter an: ${TARGET}`);
 
