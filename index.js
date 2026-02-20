@@ -6,11 +6,16 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 // ZIEL: Die URL deines Raspberry Pi
-// Fallback auf Port 10000, falls die Env Var fehlt/falsch ist
 const TARGET = process.env.TARGET_URL || 'http://100.82.208.74:10000'; 
 
-// Der SOCKS5 Agent (Tailscale)
-const tailscaleAgent = new SocksProxyAgent('socks5://127.0.0.1:1055');
+// --- 1. MASSIVE OPTIMIERUNG: Keep-Alive & Pooling ---
+// Hält den Tailscale-Tunnel offen, anstatt ihn für jeden Klick neu aufzubauen!
+const tailscaleAgent = new SocksProxyAgent('socks5://127.0.0.1:1055', {
+    keepAlive: true,        // Tunnel nicht schließen!
+    maxSockets: 100,        // Bis zu 100 gleichzeitige parallele Anfragen erlauben
+    maxFreeSockets: 10,     // 10 Tunnel auf Vorrat offen halten (für sofortige Antworten)
+    timeout: 30000          // 30 Sekunden Timeout für den Socket
+});
 
 console.log(`🚀 Proxy startet. Leite weiter an: ${TARGET}`);
 
@@ -23,15 +28,19 @@ const proxyOptions = {
     changeOrigin: true,
     ws: true, // Websockets erlauben
     secure: false, // Selbst-signierte Zertifikate akzeptieren
-    agent: tailscaleAgent,
-    xfwd: true, // <--- WICHTIG: Fügt X-Forwarded-For Header automatisch und sicher hinzu
+    agent: tailscaleAgent, // Unser neuer Turbo-Agent
+    xfwd: true, 
+    
+    // --- 2. OPTIMIERUNG: Feste Timeouts ---
+    // Verhindert, dass der Render-Server unendlich hängt, falls der Pi mal neustartet
+    proxyTimeout: 15000, // Bricht ab, wenn der Pi 15 Sekunden lang nicht antwortet
+    timeout: 15000,
     
     onError: (err, req, res) => {
         console.error('Proxy Fehler (Verbindung zum Pi fehlgeschlagen):', err.message);
         
-        // Verhindert Crash, falls Header schon gesendet wurden
         if (!res.headersSent) {
-            res.status(502).send(`Gateway Error: Konnte Raspberry Pi nicht erreichen. Ist der Port korrekt? (${err.message})`);
+            res.status(502).send(`Gateway Error: Konnte Raspberry Pi nicht erreichen. (${err.message})`);
         }
     }
 };
